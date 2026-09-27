@@ -1,0 +1,4 @@
+# FRITZ!Box DNS blocklist — domain-only format
+# Generated automatically from AdGuard DNS Filter, HaGeZi Pro and HaGeZi TIF.
+# Source rules that cannot be represented safely as domains are omitted.
+# Run the GitHub Actions workflow to generate this file.
