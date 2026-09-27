@@ -1,0 +1,43 @@
+name: Update FRITZ!Box DNS blocklist
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "build.py"
+      - ".github/workflows/update.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-dns-blocklist
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Liste herunterladen, prüfen und bauen
+        run: python build.py
+      - name: Aktualisierte Liste veröffentlichen
+        run: |
+          if git diff --quiet -- domains.txt; then
+            echo "Keine Änderungen an domains.txt."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add domains.txt
+          git commit -m "Update DNS blocklist"
+          git push
