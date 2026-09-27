@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT / "domains.txt"
-MAX_BYTES = 20 * 1024 * 1024
+MAX_BYTES = 80 * 1024 * 1024
 TIMEOUT_SECONDS = 45
 MIN_DOMAINS_PER_SOURCE = int(os.environ.get("MIN_DOMAINS_PER_SOURCE", "1000"))
 
