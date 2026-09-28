@@ -35,8 +35,8 @@ SOURCES = {
 # Keep this grammar deliberately narrow: no exceptions, modifiers, wildcards,
 # URL paths, regex rules, or other filter syntax can be represented safely as
 # a plain FRITZ!Box domain entry.
-ADGUARD_DOMAIN_RULE = re.compile(r"^\|\|([A-Za-z0-9.-]+)\^$")
-DOMAIN_LINE = re.compile(r"^[A-Za-z0-9.-]+\.?$")
+ADGUARD_DOMAIN_RULE = re.compile(r"^\|\|([^\s|^$*/\\]+)\^$")
+DOMAIN_LINE = re.compile(r"^[^\s/\\^$|!#]+\.?$")
 
 
 def normalize_domain(value: str) -> str | None:
@@ -168,4 +168,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
