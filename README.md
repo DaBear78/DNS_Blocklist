@@ -1,6 +1,6 @@
 # FRITZ!Box DNS-Blockliste aus drei Quellen
 
-Dieses Repository erstellt alle 8 Stunden eine Domain-only-Liste für die DNS-Blocklisten-Funktion der FRITZ!Box. Die fertige Datei ist nach dem ersten erfolgreichen GitHub-Actions-Lauf unter folgender Adresse erreichbar:
+Dieses Repository erstellt ca. alle 8 Stunden eine Domain-only-Liste für die DNS-Blocklisten-Funktion der FRITZ!Box. Die fertige Datei ist unter folgender Adresse erreichbar:
 
 `https://raw.githubusercontent.com/DaBear78/DNS_Blocklist/main/domains.txt`
 
