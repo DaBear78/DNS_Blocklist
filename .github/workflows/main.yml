@@ -2,7 +2,7 @@ name: Update FRITZ!Box DNS blocklist
 
 on:
   schedule:
-    - cron: "0 1,9,17 * * *"
+    - cron: "30 1,9,17 * * *"
   workflow_dispatch:
   push:
     branches: [main]
