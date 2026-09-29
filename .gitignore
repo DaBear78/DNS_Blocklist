@@ -1,0 +1,17 @@
+# Python bytecode and cache files
+__pycache__/
+*.py[cod]
+
+# Local virtual environments
+.venv/
+venv/
+env/
+
+# Local secrets and environment settings
+.env
+.env.*
+!.env.example
+
+# Operating system files
+.DS_Store
+Thumbs.db

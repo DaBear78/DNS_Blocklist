@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a conservative domain-only DNS blocklist for FRITZ!Box."""
+"""Merge safe Adblock domain rules for the FRITZ!Box DNS filter."""
 from __future__ import annotations
 
 import ipaddress
@@ -14,40 +14,31 @@ ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT / "domains.txt"
 MAX_BYTES = 80 * 1024 * 1024
 TIMEOUT_SECONDS = 45
-MIN_DOMAINS_PER_SOURCE = int(os.environ.get("MIN_DOMAINS_PER_SOURCE", "1000"))
+MIN_RULES_PER_SOURCE = int(os.environ.get("MIN_RULES_PER_SOURCE", "1000"))
 
 SOURCES = {
-    "AdGuard DNS Filter": (
-        "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt",
-        "adguard",
-    ),
-    "HaGeZi Pro": (
-        "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/pro-onlydomains.txt",
-        "domains",
-    ),
-    "HaGeZi TIF": (
-        "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/tif-onlydomains.txt",
-        "domains",
-    ),
+    "AdGuard DNS Filter": "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt",
+    "HaGeZi Pro": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt",
+    "HaGeZi TIF": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.txt",
+    "OISD Big": "https://big.oisd.nl/",
 }
 
-# AdGuard's ||domain^ rule matches the exact hostname and its subdomains.
-# Keep this grammar deliberately narrow: no exceptions, modifiers, wildcards,
-# URL paths, regex rules, or other filter syntax can be represented safely as
-# a plain FRITZ!Box domain entry.
-ADGUARD_DOMAIN_RULE = re.compile(r"^\|\|([^\s|^$*/\\]+)\^$")
-DOMAIN_LINE = re.compile(r"^[^\s/\\^$|!#]+\.?$")
+# Deliberately accept only plain domain-anchored rules. Other Adblock rules
+# (modifiers, wildcards, regex, URL patterns, etc.) must not be simplified by
+# trimming away syntax because that can change which names they block.
+BLOCK_RULE = re.compile(r"^\|\|([^\s|^$*/\\]+)\^$")
+ALLOW_RULE = re.compile(r"^@@\|\|([^\s|^$*/\\]+)\^$")
 
 
 def normalize_domain(value: str) -> str | None:
-    value = value.strip().rstrip(".").lower()
-    if not value or len(value) > 253:
+    value = value.strip().lower()
+    if value.endswith("."):
+        value = value[:-1]
+    if not value or value.endswith(".") or len(value) > 253:
         return None
     try:
         value = value.encode("idna").decode("ascii")
     except UnicodeError:
-        return None
-    if ":" in value or "*" in value:
         return None
     try:
         ipaddress.ip_address(value)
@@ -86,46 +77,46 @@ def fetch(name: str, url: str) -> str:
     return text
 
 
-def parse_source(name: str, text: str, kind: str) -> set[str]:
-    found: set[str] = set()
+def parse_source(name: str, text: str) -> tuple[set[str], set[str]]:
+    blocks: set[str] = set()
+    allows: set[str] = set()
     candidates = 0
     rejected = 0
     for raw in text.splitlines():
-        line = raw.strip()
-        if not line or line.startswith(("!", "#")):
-            continue
-        # Strip a UTF-8 BOM if a source placed one after its header/comments.
-        line = line.lstrip("\ufeff").strip()
-        if not line or line.startswith(("!", "#")):
+        line = raw.strip().lstrip("\ufeff").strip()
+        if not line or line.startswith(("!", "#", "[")):
             continue
         candidates += 1
-        domain: str | None = None
-        if kind == "adguard":
-            if DOMAIN_LINE.fullmatch(line):
-                domain = normalize_domain(line)
-            else:
-                match = ADGUARD_DOMAIN_RULE.fullmatch(line)
-                if match:
-                    domain = normalize_domain(match.group(1))
-        elif DOMAIN_LINE.fullmatch(line):
-            domain = normalize_domain(line)
-        if domain is None:
-            rejected += 1
-        else:
-            found.add(domain)
-    if len(found) < MIN_DOMAINS_PER_SOURCE:
+        block_match = BLOCK_RULE.fullmatch(line)
+        allow_match = ALLOW_RULE.fullmatch(line)
+        if block_match:
+            domain = normalize_domain(block_match.group(1))
+            if domain is not None:
+                blocks.add(domain)
+                continue
+        elif allow_match:
+            domain = normalize_domain(allow_match.group(1))
+            if domain is not None:
+                allows.add(domain)
+                continue
+        rejected += 1
+
+    if len(blocks) < MIN_RULES_PER_SOURCE:
         raise RuntimeError(
-            f"{name}: nur {len(found)} gültige Domains (Mindestwert: {MIN_DOMAINS_PER_SOURCE}); "
-            "Veröffentlichung wird abgebrochen"
+            f"{name}: nur {len(blocks)} gültige Blockregeln "
+            f"(Mindestwert: {MIN_RULES_PER_SOURCE}); Veröffentlichung wird abgebrochen"
         )
     if candidates and rejected / candidates > 0.90:
         raise RuntimeError(f"{name}: mehr als 90 % der Listeneinträge waren nicht verwertbar")
-    print(f"{name}: {len(found):,} eindeutige Domains; {rejected:,} Zeilen verworfen")
-    return found
+    print(
+        f"{name}: {len(blocks):,} Blockdomains, {len(allows):,} Ausnahmen; "
+        f"{rejected:,} nicht unterstützte Zeilen verworfen"
+    )
+    return blocks, allows
 
 
 def remove_redundant_subdomains(domains: set[str]) -> list[str]:
-    # Visiting shorter parent domains first makes suffix checks straightforward.
+    """Keep a parent domain only once when it already covers its subdomains."""
     kept: list[str] = []
     kept_set: set[str] = set()
     for domain in sorted(domains, key=lambda item: (item.count("."), item)):
@@ -141,28 +132,45 @@ def remove_redundant_subdomains(domains: set[str]) -> list[str]:
 
 
 def main() -> int:
-    combined: set[str] = set()
-    for name, (url, kind) in SOURCES.items():
+    all_blocks: set[str] = set()
+    all_allows: set[str] = set()
+    for name, url in SOURCES.items():
         try:
             content = fetch(name, url)
-            combined.update(parse_source(name, content, kind))
+            blocks, allows = parse_source(name, content)
+            all_blocks.update(blocks)
+            all_allows.update(allows)
         except (urllib.error.URLError, TimeoutError, OSError, RuntimeError) as exc:
             print(f"FEHLER: {exc}", file=sys.stderr)
             return 1
-    final = remove_redundant_subdomains(combined)
-    if len(final) < MIN_DOMAINS_PER_SOURCE:
-        print(f"FEHLER: Endliste hat nur {len(final)} Domains; keine Datei wird geschrieben", file=sys.stderr)
+
+    blocks = remove_redundant_subdomains(all_blocks)
+    allows = remove_redundant_subdomains(all_allows)
+    if len(blocks) < MIN_RULES_PER_SOURCE:
+        print(
+            f"FEHLER: Endliste enthält nur {len(blocks)} Blockregeln; "
+            "domains.txt wird nicht verändert",
+            file=sys.stderr,
+        )
         return 1
-    header = [
-        "# FRITZ!Box DNS blocklist — domain-only format",
-        "# Generated automatically from AdGuard DNS Filter, HaGeZi Pro and HaGeZi TIF.",
-        "# Source rules that cannot be represented safely as domains are omitted.",
-        f"# Domains: {len(final)}",
+
+    lines = [
+        "[Adblock Plus 2.0]",
+        "! FRITZ!Box DNS blocklist, combined from the sources below.",
+        "! Only exact domain block and exception rules are retained.",
+        "! Unsupported rules are discarded instead of being rewritten unsafely.",
+        f"! Block rules: {len(blocks)}; exception rules: {len(allows)}",
+        "! Sources:",
+        "! - AdGuard DNS Filter: https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt",
+        "! - HaGeZi Pro: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt",
+        "! - HaGeZi TIF: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.txt",
+        "! - OISD Big: https://big.oisd.nl/",
         "",
     ]
-    content = "\n".join(header + final) + "\n"
-    OUTPUT.write_text(content, encoding="utf-8", newline="\n")
-    print(f"Erstellt: {OUTPUT.name} mit {len(final):,} Domains")
+    lines.extend(f"||{domain}^" for domain in blocks)
+    lines.extend(f"@@||{domain}^" for domain in allows)
+    OUTPUT.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    print(f"Erstellt: {OUTPUT.name} mit {len(blocks):,} Blockregeln und {len(allows):,} Ausnahmen")
     return 0
 
 

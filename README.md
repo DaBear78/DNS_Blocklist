@@ -1,15 +1,28 @@
-# FRITZ!Box DNS-Blockliste aus drei Quellen
+# FRITZ!Box DNS-Filterliste
 
-Dieses Repository erstellt ca. alle 8 Stunden eine Domain-only-Liste für die DNS-Blocklisten-Funktion der FRITZ!Box. Die fertige Datei ist unter folgender Adresse erreichbar:
+Diese regelmäßig aktualisierte Sperrliste bündelt AdGuard DNS Filter, HaGeZi Pro, HaGeZi TIF und OISD Big. Sie ist für die DNS-Filterfunktion geeigneter FRITZ!Box-Modelle mit passender FRITZ!OS-Version vorgesehen.
 
-`https://raw.githubusercontent.com/DaBear78/DNS_Blocklist/main/domains.txt`
+**Filterlisten-URL:** [https://raw.githubusercontent.com/DaBear78/DNS_Blocklist/main/domains.txt](https://raw.githubusercontent.com/DaBear78/DNS_Blocklist/main/domains.txt)
 
-## Quellen und Konvertierung
+## In der FRITZ!Box einrichten
 
-- AdGuard DNS Filter: `https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt`
-- HaGeZi Pro: `https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/pro-onlydomains.txt`
-- HaGeZi TIF: `https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/tif-onlydomains.txt`
+1. Öffne die FRITZ!Box-Benutzeroberfläche unter `http://fritz.box`.
+2. Gehe zu **Heimnetz → Netzwerk → Netzwerkeinstellungen → Erweiterte Netzwerkeinstellungen ändern → DNS-Filter**.
+3. Füge eine Filterliste hinzu, trage die oben angegebene Filterlisten-URL ein und speichere die Liste.
 
-Die beiden HaGeZi-Quellen werden als Domainzeilen verarbeitet. Bei AdGuard werden nur nackte Domainzeilen und Regeln der exakten Form `||domain.example^` übernommen. Diese AdGuard-Regel blockiert die angegebene Domain und ihre Subdomains. Ausnahmen (`@@`), Modifikatoren (`$...`), Wildcards, Regex, URL-Pfade und sonstige Filterregeln werden ignoriert, weil sie keine sichere, gleichwertige Domain-only-Darstellung haben. Kommentare und Kopfzeilen werden ignoriert.
+Die genaue Position der DNS-Filter-Einstellungen beschreibt [AVM in der FRITZ!Box-Hilfe](https://fritzhelp.avm.de/help/de/FRITZ-Box-7590-AX/avm/026p1/hilfe_netzwerk_dns_filterlisten). Die Funktion setzt ein FRITZ!Box-Modell und FRITZ!OS voraus, die DNS-Filterlisten unterstützen.
 
-Domains werden kleingeschrieben, IDN-Namen in ASCII/Punycode überführt und syntaktisch validiert. Exakte Duplikate und Subdomains einer bereits enthaltenen übergeordneten Domain werden entfernt. Die Ausgabe enthält ausschließlich Kommentare und eine Domain pro Zeile.
+## Format und Inhalt
+
+Die Datei wird im **Adblock-Format** bereitgestellt. Der Merger übernimmt eindeutige Domain-Blockregeln wie `||example.com^` und Domain-Ausnahmen wie `@@||example.com^`. Regeln mit Modifikatoren, URL-Mustern, Wildcards oder Regex, die sich nicht sicher übertragen lassen, werden ausgelassen. Domains werden normalisiert; doppelte Einträge und von einer bereits enthaltenen Domain abgedeckte Subdomains werden entfernt.
+
+Die Liste wird mehrmals täglich aus diesen Quellen aktualisiert:
+
+- [AdGuard DNS Filter](https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt)
+- [HaGeZi Pro](https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt)
+- [HaGeZi TIF](https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.txt)
+- [OISD Big](https://big.oisd.nl/)
+
+Wenn die FRITZ!Box eine Filterliste als fehlerhaft meldet oder eine gewünschte Internetseite nicht erreichbar ist, prüfe zuerst den Listenstatus in der DNS-Filter-Einstellung. Bei einer fälschlich gesperrten Domain kannst du sie über die Ausnahmen der FRITZ!Box wieder freigeben.
+
+
