@@ -77,9 +77,11 @@ def fetch(name: str, url: str) -> str:
     return text
 
 
-def parse_source(name: str, text: str) -> tuple[set[str], set[str]]:
+def parse_source(name: str, text: str) -> tuple[set[str], set[str], dict[str, int]]:
     blocks: set[str] = set()
     allows: set[str] = set()
+    block_lines = 0
+    allow_lines = 0
     candidates = 0
     rejected = 0
     for raw in text.splitlines():
@@ -93,11 +95,13 @@ def parse_source(name: str, text: str) -> tuple[set[str], set[str]]:
             domain = normalize_domain(block_match.group(1))
             if domain is not None:
                 blocks.add(domain)
+                block_lines += 1
                 continue
         elif allow_match:
             domain = normalize_domain(allow_match.group(1))
             if domain is not None:
                 allows.add(domain)
+                allow_lines += 1
                 continue
         rejected += 1
 
@@ -112,7 +116,12 @@ def parse_source(name: str, text: str) -> tuple[set[str], set[str]]:
         f"{name}: {len(blocks):,} Blockdomains, {len(allows):,} Ausnahmen; "
         f"{rejected:,} nicht unterstützte Zeilen verworfen"
     )
-    return blocks, allows
+    stats = {
+        "block_lines": block_lines,
+        "allow_lines": allow_lines,
+        "rejected": rejected,
+    }
+    return blocks, allows, stats
 
 
 def remove_redundant_subdomains(domains: set[str]) -> list[str]:
@@ -134,12 +143,14 @@ def remove_redundant_subdomains(domains: set[str]) -> list[str]:
 def main() -> int:
     all_blocks: set[str] = set()
     all_allows: set[str] = set()
+    source_stats: list[tuple[str, dict[str, int]]] = []
     for name, url in SOURCES.items():
         try:
             content = fetch(name, url)
-            blocks, allows = parse_source(name, content)
+            blocks, allows, stats = parse_source(name, content)
             all_blocks.update(blocks)
             all_allows.update(allows)
+            source_stats.append((name, stats))
         except (urllib.error.URLError, TimeoutError, OSError, RuntimeError) as exc:
             print(f"FEHLER: {exc}", file=sys.stderr)
             return 1
@@ -154,13 +165,33 @@ def main() -> int:
         )
         return 1
 
+    duplicate_blocks = sum(stats["block_lines"] for _, stats in source_stats) - len(all_blocks)
+    duplicate_allows = sum(stats["allow_lines"] for _, stats in source_stats) - len(all_allows)
+    redundant_blocks = len(all_blocks) - len(blocks)
+    redundant_allows = len(all_allows) - len(allows)
+    rejected_total = sum(stats["rejected"] for _, stats in source_stats)
+
     lines = [
         "[Adblock Plus 2.0]",
-        "! FRITZ!Box DNS blocklist, combined from the sources below.",
-        "! Only exact domain block and exception rules are retained.",
-        "! Unsupported rules are discarded instead of being rewritten unsafely.",
-        f"! Block rules: {len(blocks)}; exception rules: {len(allows)}",
-        "! Sources:",
+        "! FRITZ!Box DNS-Sperrliste, zusammengeführt aus den folgenden Quellen.",
+        "! Übernommen werden nur exakte Domain-Sperr- und Ausnahmeregeln.",
+        "! Nicht unterstützte Regeln werden verworfen, nicht unsicher umgeschrieben.",
+        f"! Erfolgreich verarbeitete Quellen: {len(source_stats)}/{len(SOURCES)}",
+        f"! Endbestand: {len(blocks)} Sperrregeln; {len(allows)} Ausnahmen",
+        (
+            "! Beim Zusammenführen entfallen: "
+            f"{duplicate_blocks + duplicate_allows} exakte Duplikate; "
+            f"{redundant_blocks + redundant_allows} redundante Regeln, "
+            "die eine übergeordnete Domain abdeckt"
+        ),
+        (
+            "! Aus anderen Gründen verworfen (ungültige Domain oder "
+            f"nicht unterstützte Syntax): {rejected_total} Regeln"
+        ),
+        "! Verworfen je Quelle: " + "; ".join(
+            f"{name}={stats['rejected']}" for name, stats in source_stats
+        ),
+        "! Quellen:",
         "! - AdGuard DNS Filter: https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt",
         "! - HaGeZi Pro: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt",
         "! - HaGeZi TIF: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.txt",

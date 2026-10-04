@@ -16,6 +16,8 @@ Die genaue Position der DNS-Filter-Einstellungen beschreibt [AVM in der FRITZ!Bo
 
 Die Datei wird im **Adblock-Format** bereitgestellt. Der Merger übernimmt eindeutige Domain-Blockregeln wie `||example.com^` und Domain-Ausnahmen wie `@@||example.com^`. Regeln mit Modifikatoren, URL-Mustern, Wildcards oder Regex, die sich nicht sicher übertragen lassen, werden ausgelassen. Domains werden normalisiert; doppelte Einträge und von einer bereits enthaltenen Domain abgedeckte Subdomains werden entfernt.
 
+Der Kommentarblock am Anfang der Liste zeigt, wie viele Quellen erfolgreich verarbeitet wurden, wie viele Regeln beim Zusammenführen als Duplikate oder redundante Subdomains entfielen und wie viele Regeln aus anderen Gründen verworfen wurden. Die verworfenen Regeln werden zusätzlich nach Quelle aufgeschlüsselt.
+
 Die Liste wird mehrmals täglich aus diesen Quellen aktualisiert:
 
 - [AdGuard DNS Filter](https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt)
